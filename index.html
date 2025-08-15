@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>断易占い</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Sawarabi+Mincho&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Sawarabi Mincho', 'Yu Mincho', serif;
+      background-color: #fffaf0;
+      padding: 2em;
+      color: #2c2c2c;
+    }
+    h1 {
+      text-align: center;
+      font-size: 1.8em;
+      margin-bottom: 1em;
+    }
+    input, button {
+      font-size: 1em;
+      padding: 0.5em;
+      margin: 0.5em 0;
+      width: 100%;
+    }
+    .result, .history {
+      margin-top: 2em;
+      text-align: center;
+    }
+    svg {
+      margin: 1em auto;
+      display: block;
+    }
+    .history-entry {
+      border-top: 1px solid #ccc;
+      padding: 1em 0;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <h1>断易占い</h1>
+  <input type="text" id="topic" placeholder="占いたいことを入力">
+  <button onclick="castHexagram()">卦を立てる</button>
+  <button onclick="showHistory()">履歴を見る</button>
+
+  <div class="result">
+    <p id="topicDisplay"></p>
+    <div id="hexagramDisplay"></div>
+    <p id="hexagramName"></p>
+    <p id="hexagramMeaning"></p>
+  </div>
+
+  <div class="history" id="historyDisplay"></div>
+
+  <script>
+    const hexagramDict = {
+      "111111": { name: "乾（けん）", meaning: "剛健で積極的。成功と発展の兆し。" },
+      "000000": { name: "坤（こん）", meaning: "柔順で受容的。支え合いと育成の象徴。" },
+      "100010": { name: "屯（ちゅん）", meaning: "困難な始まり。忍耐と準備が必要。" },
+      "010001": { name: "蒙（もう）", meaning: "未熟さと学び。導きと教育の重要性。" },
+      "111010": { name: "需（じゅ）", meaning: "待つことの価値。機を見て動く。" },
+      "010111": { name: "訟（しょう）", meaning: "争いの兆し。冷静な対処が必要。" },
+      // …64卦を追加可能
+    };
+
+    function castHexagram() {
+      const topic = document.getElementById("topic").value;
+      const baseLines = [];
+      const changing = [];
+
+      for (let i = 0; i < 6; i++) {
+        const line = Math.random() < 0.5 ? 1 : 0;
+        baseLines.push(line);
+        changing.push(Math.random() < 0.3);
+      }
+
+      const baseCode = baseLines.slice().reverse().join("");
+      const changedLines = baseLines.map((line, i) => changing[i] ? 1 - line : line);
+      const changedCode = changedLines.slice().reverse().join("");
+
+      const baseHexagram = hexagramDict[baseCode] || { name: "未知の卦", meaning: "この卦はまだ言葉になっていません。" };
+      const changedHexagram = hexagramDict[changedCode] || { name: "未知の卦", meaning: "この卦はまだ言葉になっていません。" };
+
+      document.getElementById("topicDisplay").textContent = topic ? `占的：${topic}` : "";
+      document.getElementById("hexagramDisplay").innerHTML =
+        `<strong>本卦：</strong>${renderSVG(baseLines, changing)}<br>` +
+        `<strong>之卦：</strong>${renderSVG(changedLines, [])}`;
+      document.getElementById("hexagramName").textContent = `本卦：${baseHexagram.name} → 之卦：${changedHexagram.name}`;
+      document.getElementById("hexagramMeaning").textContent =
+        `本卦の意味：${baseHexagram.meaning}\n之卦の意味：${changedHexagram.meaning}`;
+
+      saveHistory({ topic, baseCode, changedCode });
+    }
+
+    function renderSVG(lines, changing) {
+      const width = 100;
+      const height = 140;
+      const lineHeight = 20;
+      let svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">`;
+
+      svg += `<rect x="2" y="2" width="${width - 4}" height="${height - 4}" rx="8" ry="8" fill="none" stroke="#888" stroke-width="1.5"/>`;
+
+      lines.slice().reverse().forEach((line, i) => {
+        const y = i * lineHeight + 10;
+        const isChanging = changing[i];
+        const color = isChanging ? "crimson" : "#2c2c2c";
+        const animate = isChanging
+          ? `<animate attributeName="stroke-opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite"/>`
+          : "";
+
+        if (line === 1) {
+          svg += `<line x1="10" y1="${y}" x2="90" y2="${y}" stroke="${color}" stroke-width="4">${animate}</line>`;
+        } else {
+          svg += `<line x1="10" y1="${y}" x2="40" y2="${y}" stroke="${color}" stroke-width="4">${animate}</line>`;
+          svg += `<line x1="60" y1="${y}" x2="90" y2="${y}" stroke="${color}" stroke-width="4">${animate}</line>`;
+        }
+      });
+
+      svg += `</svg>`;
+      return svg;
+    }
+
+    function saveHistory(entry) {
+      const history = JSON.parse(localStorage.getItem("divinationHistory") || "[]");
+      entry.date = new Date().toLocaleString();
+      history.unshift(entry);
+      localStorage.setItem("divinationHistory", JSON.stringify(history));
+    }
+
+    function showHistory() {
+      const history = JSON.parse(localStorage.getItem("divinationHistory") || "[]");
+      if (history.length === 0) {
+        document.getElementById("historyDisplay").innerHTML = "<p>履歴はまだありません。</p>";
+        return;
+      }
+
+      const html = history.map(h => {
+        const base = hexagramDict[h.baseCode]?.name || h.baseCode;
+        const changed = hexagramDict[h.changedCode]?.name || h.changedCode;
+        return `
+          <div class="history-entry">
+            <strong>${h.date}</strong><br>
+            占的：${h.topic}<br>
+            本卦：${base}<br>
+            之卦：${changed}
+          </div>
+        `;
+      }).join("");
+      document.getElementById("historyDisplay").innerHTML = html;
+    }
+  </script>
+</body>
+</html>
